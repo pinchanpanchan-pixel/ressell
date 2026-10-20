@@ -62,3 +62,19 @@ export const MANUAL_LEDGER_CATEGORIES = [
   'supplier_refund',
   'adjustment',
 ] as const satisfies readonly LedgerCategory[];
+
+export function poStatusTone(s: PoStatus): 'positive' | 'negative' | 'neutral' | 'warn' | 'info' {
+  return s === 'received' || s === 'reviewed' ? 'positive' : s === 'cancelled' ? 'negative' : s === 'draft' ? 'neutral' : s === 'pending_payment' ? 'warn' : 'info';
+}
+
+/** Mensajes de confirmación que se muestran tras acciones que cambian el estado de una ficha. */
+export const FLASH: Record<string, string> = {
+  pagado: 'Pago registrado en caja. El stock se añadirá al recibir el pedido.',
+  recibido: 'Pedido recibido: stock actualizado con el coste real de cada unidad.',
+  cancelado: 'Pedido cancelado. El historial se conserva.',
+  cobrada: 'Cobro registrado en caja.',
+  venta_cancelada: 'Venta cancelada: stock repuesto y movimientos de caja revertidos.',
+  devolucion: 'Devolución registrada y unidades repuestas en stock.',
+  devolucion_defectuosa: 'Devolución registrada como defectuosa (pérdida).',
+  nueva: 'Venta registrada. El stock se ha reducido.',
+};

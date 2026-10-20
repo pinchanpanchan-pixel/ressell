@@ -20,9 +20,16 @@ export function buildCapitalSeries(
   const days = [...new Set([...cashByDay.keys(), ...invByDay.keys()])].sort();
   let cash = 0;
   let inv = 0;
-  return days.map((date) => {
+  const points = days.map((date) => {
     cash += cashByDay.get(date) ?? 0;
     inv += invByDay.get(date) ?? 0;
     return { date, cashCents: cash, inventoryCents: inv, totalCents: cash + inv };
   });
+  // Punto de partida a cero el día anterior, para que el gráfico se vea desde el primer día.
+  if (points.length > 0) {
+    const d = new Date(`${points[0].date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 1);
+    points.unshift({ date: d.toISOString().slice(0, 10), cashCents: 0, inventoryCents: 0, totalCents: 0 });
+  }
+  return points;
 }

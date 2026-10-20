@@ -9,9 +9,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:db": "DB_TESTS=1 STACK_KEYS=${STACK_KEYS:-/tmp/mlsupply-stack/keys.env} vitest run",
+    "test:db": "bash scripts/test-stack/up.sh >/dev/null && DB_TESTS=1 STACK_KEYS=${OUT_DIR:-/tmp/mlsupply-stack}/keys.env vitest run",
     "stack:up": "bash scripts/test-stack/up.sh",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "test:e2e": "bash scripts/e2e.sh"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
