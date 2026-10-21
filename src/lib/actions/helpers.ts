@@ -107,3 +107,12 @@ export async function failure(supabase: SupabaseClient, context: string, error: 
   }
   return { ok: false, message: friendlyError(error) };
 }
+
+/** Versión esperada del registro (updated_at leído al abrir el formulario). */
+export function expectedVersion(fd: FormData): string | null {
+  const v = fd.get('expected_updated_at');
+  return typeof v === 'string' && v ? v : null;
+}
+
+export const CONFLICT_MESSAGE =
+  'Este registro se ha modificado desde otro dispositivo mientras lo editabas. No se ha guardado nada para no sobrescribir el cambio más reciente: revisa los datos actualizados y vuelve a guardar.';

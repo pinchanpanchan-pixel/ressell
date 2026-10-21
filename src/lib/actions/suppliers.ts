@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireOwner } from '../auth';
 import { randomUUID } from 'node:crypto';
-import { failure, parseForm, zRequiredText, zText, zUuid } from './helpers';
+import { CONFLICT_MESSAGE, expectedVersion, failure, parseForm, zRequiredText, zText, zUuid } from './helpers';
 import type { ActionState } from './result';
 
 const schema = z.object({
@@ -18,9 +18,17 @@ export async function saveSupplier(_: ActionState, fd: FormData): Promise<Action
   const parsed = parseForm(schema, fd);
   if (!parsed.ok) return parsed.state;
   const id = fd.get('id');
-  const { error } = typeof id === 'string' && id
-    ? await supabase.from('suppliers').update(parsed.data).eq('id', id)
-    : await supabase.from('suppliers').insert(parsed.data);
+  if (typeof id === 'string' && id) {
+    let q = supabase.from('suppliers').update(parsed.data).eq('id', id);
+    const version = expectedVersion(fd);
+    if (version) q = q.eq('updated_at', version);
+    const { data, error } = await q.select('updated_at').maybeSingle();
+    if (error) return failure(supabase, 'saveSupplier', error);
+    revalidatePath('/', 'layout');
+    if (!data) return { ok: false, message: CONFLICT_MESSAGE };
+    return { ok: true, message: 'Proveedor guardado', version: data.updated_at as string };
+  }
+  const { error } = await supabase.from('suppliers').insert(parsed.data);
   if (error) return failure(supabase, 'saveSupplier', error);
   revalidatePath('/', 'layout');
   return { ok: true, message: 'Proveedor guardado', requestId: randomUUID() };
