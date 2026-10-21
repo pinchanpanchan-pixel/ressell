@@ -7,6 +7,7 @@ import { centsToInput, formatEUR, parseEuroToCents } from '@/lib/money';
 import { productLabel, type ProductMetrics, type PurchaseOrderLine, type PurchaseOrderOverview, type Supplier } from '@/lib/types';
 import { Field, FormMessage, Input, MoneyInput, Select, SubmitButton, Textarea } from './form';
 import { Card, Row } from './ui';
+import { useVersionGuard, VersionFields } from './version-guard';
 
 type Line = { key: number; product_id: string; quantity: string; unit_price: string; discount: string };
 
@@ -20,6 +21,7 @@ export function OrderForm({ products, suppliers, requestId, today, order, lines:
   prefill?: { product_id: string; quantity: number }[];
 }) {
   const [state, action] = useActionState(saveOrder, null);
+  const guard = useVersionGuard(order?.updated_at);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const unitPriceFor = (id: string) => {
     const p = byId.get(id);
@@ -51,6 +53,7 @@ export function OrderForm({ products, suppliers, requestId, today, order, lines:
     <form action={action} className="flex flex-col gap-4">
       <input type="hidden" name="client_request_id" value={requestId} />
       {order && <input type="hidden" name="id" value={order.id} />}
+      {order && <VersionFields {...guard} />}
       <input type="hidden" name="lines" value={JSON.stringify(parsedLines)} />
 
       <Card className="flex flex-col gap-4">

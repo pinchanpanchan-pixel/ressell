@@ -1,6 +1,7 @@
 import { Settings } from 'lucide-react';
 import Link from 'next/link';
 import { BottomNav } from '@/components/bottom-nav';
+import { LiveSync } from '@/components/live-sync';
 import { requireOwner } from '@/lib/auth';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -12,9 +13,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="grid size-7 place-items-center rounded-lg bg-card text-[11px] font-bold">ML</span>
           ML Supply
         </Link>
-        <Link href="/ajustes" aria-label="Ajustes" className="grid size-10 place-items-center rounded-full text-muted hover:bg-white/5 hover:text-ink">
-          <Settings className="size-5" />
-        </Link>
+        <div className="flex items-center gap-1">
+          <LiveSync />
+          <Link href="/ajustes" aria-label="Ajustes" className="grid size-10 place-items-center rounded-full text-muted hover:bg-white/5 hover:text-ink">
+            <Settings className="size-5" />
+          </Link>
+        </div>
       </div>
       <main className="fade-in px-4 pb-32">{children}</main>
       <BottomNav />

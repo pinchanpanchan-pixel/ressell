@@ -5,13 +5,16 @@ import { AUTH_LABEL } from '@/lib/labels';
 import { centsToInput } from '@/lib/money';
 import type { ProductMetrics, Supplier } from '@/lib/types';
 import { Field, FormMessage, Input, MoneyInput, Select, SubmitButton, Textarea } from './form';
+import { useVersionGuard, VersionFields } from './version-guard';
 
-export function ProductForm({ product, suppliers }: { product?: ProductMetrics; suppliers: Supplier[] }) {
+export function ProductForm({ product, suppliers, version }: { product?: ProductMetrics; suppliers: Supplier[]; version?: string }) {
   const [state, action] = useActionState(saveProduct, null);
+  const guard = useVersionGuard(version);
   const e = state?.fieldErrors ?? {};
   return (
     <form action={action} className="flex flex-col gap-4">
       {product && <input type="hidden" name="id" value={product.id} />}
+      {product && <VersionFields {...guard} />}
       <Field label="Nombre" error={e.name}><Input name="name" defaultValue={product?.name} required placeholder="Ej.: Zapatilla Air" /></Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Marca" error={e.brand}><Input name="brand" defaultValue={product?.brand ?? ''} /></Field>

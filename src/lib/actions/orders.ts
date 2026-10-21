@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { requireOwner } from '../auth';
-import { failure, parseForm, zDate, zMoney, zOptionalUuid, zText, zUuid } from './helpers';
+import { CONFLICT_MESSAGE, expectedVersion, failure, parseForm, zDate, zMoney, zOptionalUuid, zText, zUuid } from './helpers';
 import type { ActionState } from './result';
 
 const lineSchema = z.object({
@@ -44,6 +44,18 @@ export async function saveOrder(_: ActionState, fd: FormData): Promise<ActionSta
   const d = parsed.data;
   for (const l of d.lines) {
     if (l.discount_cents > l.quantity * l.unit_price_cents) return { ok: false, message: 'El descuento de una línea supera su importe' };
+  }
+  if (d.id) {
+    // Control de cambios simultáneos al editar un pedido existente.
+    const version = expectedVersion(fd);
+    if (version) {
+      const { data: current, error: vErr } = await supabase.from('purchase_orders').select('updated_at').eq('id', d.id).maybeSingle();
+      if (vErr) return failure(supabase, 'saveOrder', vErr);
+      if (current && new Date(current.updated_at as string).getTime() !== new Date(version).getTime()) {
+        revalidatePath('/', 'layout');
+        return { ok: false, message: CONFLICT_MESSAGE };
+      }
+    }
   }
   const { data, error } = await supabase.rpc('save_purchase_order', {
     p_id: d.id, p_client_request_id: d.client_request_id, p_reference: d.reference, p_supplier_id: d.supplier_id,

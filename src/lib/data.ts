@@ -39,6 +39,15 @@ export async function getProduct(id: string): Promise<ProductMetrics> {
   return data as ProductMetrics;
 }
 
+/** Versión actual del producto (updated_at), para detectar ediciones simultáneas. */
+export async function getProductVersion(id: string): Promise<string> {
+  const { supabase } = await requireOwner();
+  const { data, error } = await supabase.from('products').select('updated_at').eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) notFound();
+  return data.updated_at as string;
+}
+
 export async function getProductMovements(productId: string): Promise<InventoryMovement[]> {
   const { supabase } = await requireOwner();
   const res = await supabase.from('inventory_movements').select('*').eq('product_id', productId)

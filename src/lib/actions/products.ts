@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { requireOwner } from '../auth';
-import { failure, parseForm, withRequestId, zDate, zInt, zOptionalMoney, zOptionalUuid, zRequiredText, zText, zUuid } from './helpers';
+import { CONFLICT_MESSAGE, expectedVersion, failure, parseForm, withRequestId, zDate, zInt, zOptionalMoney, zOptionalUuid, zRequiredText, zText, zUuid } from './helpers';
 import type { ActionState } from './result';
 
 const productSchema = z.object({
@@ -27,13 +27,25 @@ export async function saveProduct(_: ActionState, fd: FormData): Promise<ActionS
   const parsed = parseForm(productSchema, fd);
   if (!parsed.ok) return parsed.state;
   const id = fd.get('id');
-  const query = typeof id === 'string' && id
-    ? supabase.from('products').update(parsed.data).eq('id', id).select('id').single()
-    : supabase.from('products').insert(parsed.data).select('id').single();
-  const { data, error } = await query;
-  if (error) return failure(supabase, 'saveProduct', error);
+  if (typeof id === 'string' && id) {
+    // Control de cambios simultáneos: solo se actualiza si nadie lo ha modificado desde que se abrió el formulario.
+    let q = supabase.from('products').update(parsed.data).eq('id', id);
+    const version = expectedVersion(fd);
+    if (version) q = q.eq('updated_at', version);
+    const { data, error } = await q.select('id').maybeSingle();
+    if (error) return failure(supabase, 'saveProduct', error);
+    if (!data) {
+      revalidatePath('/', 'layout');
+      return { ok: false, message: CONFLICT_MESSAGE };
+    }
+  } else {
+    const { data, error } = await supabase.from('products').insert(parsed.data).select('id').single();
+    if (error) return failure(supabase, 'saveProduct', error);
+    revalidatePath('/', 'layout');
+    redirect(`/stock/${data.id}`);
+  }
   revalidatePath('/', 'layout');
-  redirect(`/stock/${data.id}`);
+  redirect(`/stock/${id}`);
 }
 
 export async function setProductArchived(fd: FormData) {

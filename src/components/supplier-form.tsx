@@ -3,14 +3,17 @@ import { useActionState } from 'react';
 import { deleteSupplier, saveSupplier } from '@/lib/actions/suppliers';
 import type { Supplier } from '@/lib/types';
 import { ConfirmSubmit, Field, FormMessage, Input, SubmitButton } from './form';
+import { useVersionGuard, VersionFields } from './version-guard';
 
 export function SupplierForm({ supplier }: { supplier?: Supplier }) {
   const [state, action] = useActionState(saveSupplier, null);
   const [delState, delAction] = useActionState(deleteSupplier, null);
+  const guard = useVersionGuard(supplier?.updated_at, state?.ok ? state.version : undefined);
   return (
     <div className="flex flex-col gap-2">
       <form action={action} className="flex flex-col gap-3" key={supplier ? supplier.id : (state?.requestId ?? 'new')}>
         {supplier && <input type="hidden" name="id" value={supplier.id} />}
+        {supplier && <VersionFields {...guard} />}
         <div className="grid grid-cols-[1fr_6rem] gap-3">
           <Field label="Nombre" error={state?.fieldErrors?.name}><Input name="name" defaultValue={supplier?.name} required /></Field>
           <Field label="Plazo (días)"><Input name="default_lead_time_days" type="number" inputMode="numeric" min={0} max={365} defaultValue={supplier?.default_lead_time_days ?? 14} /></Field>

@@ -16,6 +16,8 @@ export interface Supplier {
   contact: string | null;
   default_lead_time_days: number;
   notes: string | null;
+  /** Versión del registro (control de cambios simultáneos entre dispositivos). */
+  updated_at: string;
 }
 
 export interface ProductMetrics {
@@ -96,6 +98,7 @@ export interface SaleOverview {
 }
 
 export interface PurchaseOrderOverview {
+  updated_at: string;
   id: string;
   reference: string;
   supplier_id: string | null;
