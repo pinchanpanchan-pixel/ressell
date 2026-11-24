@@ -41,7 +41,7 @@ export const LEDGER_LABEL: Record<LedgerCategory, string> = {
   initial_capital: 'Capital inicial',
   capital_contribution: 'Aportación de capital',
   sale_income: 'Ingreso por venta',
-  platform_fee: 'Comisión',
+  platform_fee: 'Destacado',
   sale_shipping: 'Envío de venta',
   sale_other_cost: 'Otros gastos de venta',
   supplier_payment: 'Pago a proveedor',
@@ -77,4 +77,6 @@ export const FLASH: Record<string, string> = {
   devolucion: 'Devolución registrada y unidades repuestas en stock.',
   devolucion_defectuosa: 'Devolución registrada como defectuosa (pérdida).',
   nueva: 'Venta registrada. El stock se ha reducido.',
+  venta_eliminada: 'Venta eliminada: sus unidades han vuelto al stock y su dinero ha salido de la caja.',
+  pedido_eliminado: 'Pedido eliminado: su pago ha salido de la caja y sus unidades del stock.',
 };

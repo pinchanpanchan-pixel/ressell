@@ -31,6 +31,13 @@ export async function getProducts(opts: { archived?: boolean } = {}): Promise<Pr
   return must(res, 'los productos') as ProductMetrics[];
 }
 
+/** Categorías distintas usadas en tus productos (para sugerirlas y filtrar). */
+export async function getCategories(): Promise<string[]> {
+  const { supabase } = await requireOwner();
+  const { data } = await supabase.from('products').select('category').not('category', 'is', null);
+  return [...new Set((data ?? []).map((r) => String(r.category).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+}
+
 export async function getProduct(id: string): Promise<ProductMetrics> {
   const { supabase } = await requireOwner();
   const { data, error } = await supabase.from('product_metrics').select('*').eq('id', id).maybeSingle();
@@ -152,4 +159,24 @@ export async function getAttachments(entityType: 'product' | 'purchase_order' | 
   const signed = await supabase.storage.from('attachments').createSignedUrls(data.map((a) => a.storage_path), 3600);
   const urls = new Map((signed.data ?? []).map((s) => [s.path, s.signedUrl]));
   return data.map((a) => ({ ...a, url: urls.get(a.storage_path) ?? null }));
+}
+
+/** Último precio por unidad pagado (o pedido) al proveedor por cada producto, de pedidos no cancelados. */
+export async function getLastSupplierPrices(): Promise<Map<string, number>> {
+  const { supabase } = await requireOwner();
+  const { data, error } = await supabase
+    .from('purchase_order_lines')
+    .select('product_id, unit_price_cents, quantity, discount_cents, purchase_orders!inner(order_date, status, created_at)')
+    .neq('purchase_orders.status', 'cancelled');
+  if (error) throw new Error(`No se pudieron cargar los precios de proveedor: ${error.message}`);
+  type Row = { product_id: string; unit_price_cents: number; quantity: number; discount_cents: number; purchase_orders: { order_date: string; created_at: string } | { order_date: string; created_at: string }[] };
+  const latest = new Map<string, { date: string; price: number }>();
+  for (const r of (data ?? []) as Row[]) {
+    const o = Array.isArray(r.purchase_orders) ? r.purchase_orders[0] : r.purchase_orders;
+    const key = `${o.order_date}|${o.created_at}`;
+    const net = Math.round((r.quantity * r.unit_price_cents - r.discount_cents) / r.quantity);
+    const cur = latest.get(r.product_id);
+    if (!cur || key > cur.date) latest.set(r.product_id, { date: key, price: net });
+  }
+  return new Map([...latest.entries()].map(([k, v]) => [k, v.price]));
 }

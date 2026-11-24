@@ -25,9 +25,12 @@ export default async function Dashboard() {
     <>
       <p className="mt-4 px-1 text-sm text-muted">{capitalize(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</p>
 
-      <Card className="mt-3 bg-gradient-to-br from-card to-[#2c3644] p-5">
-        <p className="text-sm text-muted">Dinero disponible</p>
-        <p className="num mt-1 text-[40px] font-semibold leading-none tracking-tight">{formatEUR(s.cash_cents)}</p>
+      <Card className={`mt-3 bg-gradient-to-br from-card to-[#2c3644] p-5 ${s.cash_cents < 0 ? 'negative-cash border-danger/70' : ''}`}>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted">Dinero disponible</p>
+          {s.cash_cents < 0 && <span className="rounded-full bg-danger/15 px-2 py-0.5 text-xs font-medium text-danger">En negativo</span>}
+        </div>
+        <p data-cash className={`num mt-1 text-[40px] font-semibold leading-none tracking-tight ${s.cash_cents < 0 ? 'text-danger' : ''}`}>{formatEUR(s.cash_cents)}</p>
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
           <span>Capital aportado <b className="num font-medium text-ink">{formatEUR(s.capital_contributed_cents)}</b></span>
           <span>Reinvertido <b className="num font-medium text-ink">{formatEUR(s.reinvested_cents)}</b></span>
@@ -117,7 +120,7 @@ export default async function Dashboard() {
 
       <SectionTitle>Más indicadores</SectionTitle>
       <Card>
-        <Row label="Gastos acumulados" value={formatEUR(s.expenses_total_cents)} hint="Comisiones, envíos asumidos y gastos generales" />
+        <Row label="Gastos acumulados" value={formatEUR(s.expenses_total_cents)} hint="Destacados, envíos asumidos y gastos generales" />
         <Row label="Cobros pendientes" value={formatEUR(s.pending_collections_cents)} />
         <Row label="Envíos de clientes pendientes" value={s.pending_deliveries} />
         <Row label="Pagos a proveedores pendientes" value={formatEUR(s.pending_payments_cents)} />

@@ -276,13 +276,17 @@ describe('recorrido completo de compra, venta y devolución', () => {
     expect(await rpcError('register_sale', sale(ids.b))).toMatch(/Stock insuficiente: hay 0/);
   });
 
-  it('gasto adicional y gasto que supera la caja', async () => {
+  it('gasto adicional y gasto que deja la caja en negativo', async () => {
     const cash = (await summary()).cash_cents;
     await rpc('record_ledger_entry', { p_client_request_id: randomUUID(), p_entry_date: '2026-10-14', p_category: 'expense', p_amount_cents: 1200, p_description: 'Bolsas y etiquetas' });
     const s = await summary();
     expect(s.cash_cents).toBe(cash - 1200);
     expect(s.general_expenses_cents).toBe(1200);
-    expect(await rpcError('record_ledger_entry', { p_client_request_id: randomUUID(), p_entry_date: null, p_category: 'expense', p_amount_cents: 10_000_000, p_description: 'Demasiado' })).toMatch(/Saldo insuficiente/);
+    // La caja puede quedar en negativo: el gasto se acepta y se puede anular después.
+    const big = await rpc<string>('record_ledger_entry', { p_client_request_id: randomUUID(), p_entry_date: null, p_category: 'expense', p_amount_cents: 10_000_000, p_description: 'Gasto grande' });
+    expect((await summary()).cash_cents).toBe(cash - 1200 - 10_000_000);
+    await rpc('reverse_ledger_entry', { p_id: big, p_reason: 'Prueba' });
+    expect((await summary()).cash_cents).toBe(cash - 1200);
     expect(await rpcError('record_ledger_entry', { p_client_request_id: randomUUID(), p_entry_date: null, p_category: 'sale_income', p_amount_cents: 100, p_description: 'x' })).toMatch(/automáticamente/);
   });
 
@@ -331,5 +335,64 @@ describe('recorrido completo de compra, venta y devolución', () => {
     expect(s.revenue_cents).toBe(7000 + 15000); // venta1 + venta B (venta3 reembolsada entera)
     expect(s.net_profit_cents).toBe(s.revenue_cents - s.cogs_cents - s.selling_costs_cents - s.general_expenses_cents - s.write_off_losses_cents);
     expect(s.units_in_stock).toBe(1);
+  });
+});
+
+describe('eliminar ventas y pedidos', () => {
+  it('eliminar un pedido con unidades vendidas se rechaza; eliminando antes la venta, sí se puede', async () => {
+    const start = await summary();
+    const c = await db.from('products').insert({ name: 'Producto para borrar', variant: 'Única', expected_price_cents: 5000 }).select().single();
+    const pid = c.data!.id as string;
+    const po = await rpc<string>('save_purchase_order', order([{ product_id: pid, quantity: 2, unit_price_cents: 1000 }], { p_shipping_cents: 400 }));
+    await rpc('pay_purchase_order', { p_id: po, p_paid_on: null });
+    await rpc('receive_purchase_order', { p_id: po, p_received_on: null });
+    const saleId = await rpc<string>('register_sale', sale(pid, { p_unit_price_cents: 5000, p_platform_fee_cents: 200 }));
+    await rpc('register_sale_return', { p_client_request_id: randomUUID(), p_sale_id: saleId, p_return_date: null, p_quantity: 1, p_refund_cents: 1000, p_restock: false, p_reason: 'Defectuoso' });
+    expect((await stockOf(pid)).stock_qty).toBe(1);
+
+    expect(await rpcError('delete_purchase_order', { p_id: po })).toMatch(/vendidas o dadas de baja/);
+
+    await rpc('delete_sale', { p_id: saleId });
+    expect((await stockOf(pid)).stock_qty).toBe(2);
+    expect((await stockOf(pid)).stock_cost_cents).toBe(2400);
+    const { count: left } = await db.from('ledger_entries').select('*', { count: 'exact', head: true }).eq('sale_id', saleId);
+    expect(left).toBe(0);
+    expect((await summary()).cash_cents).toBe(start.cash_cents - 2400);
+
+    await rpc('delete_purchase_order', { p_id: po });
+    const after = await summary();
+    expect(after.cash_cents).toBe(start.cash_cents);
+    expect(after.inventory_cost_cents).toBe(start.inventory_cost_cents);
+    expect((await stockOf(pid)).stock_qty).toBe(0);
+    const { count: lots } = await db.from('stock_lots').select('*', { count: 'exact', head: true }).eq('purchase_order_id', po);
+    expect(lots).toBe(0);
+    expect(sql(`select count(*) from public.stock_lots l where l.quantity_remaining <> coalesce((select sum(quantity) from public.inventory_movements m where m.lot_id = l.id),0)`)).toBe('0');
+  });
+
+  it('solo los pedidos pagados cuentan como unidades en camino', async () => {
+    const c = await db.from('products').insert({ name: 'Producto en camino', variant: 'Única' }).select().single();
+    const pid = c.data!.id as string;
+    const po = await rpc<string>('save_purchase_order', order([{ product_id: pid, quantity: 3, unit_price_cents: 100 }]));
+    expect((await stockOf(pid)).incoming_qty).toBe(0);
+    await rpc('pay_purchase_order', { p_id: po, p_paid_on: null });
+    expect((await stockOf(pid)).incoming_qty).toBe(3);
+    await rpc('delete_purchase_order', { p_id: po });
+    expect((await stockOf(pid)).incoming_qty).toBe(0);
+  });
+
+  it('las ventas nuevas registran el destacado como «Destacado»', async () => {
+    const c = await db.from('products').insert({ name: 'Producto destacado', variant: 'Única' }).select().single();
+    const pid = c.data!.id as string;
+    const po = await rpc<string>('save_purchase_order', order([{ product_id: pid, quantity: 1, unit_price_cents: 100 }]));
+    await rpc('receive_purchase_order', { p_id: po, p_received_on: null });
+    const sid = await rpc<string>('register_sale', sale(pid, { p_platform_fee_cents: 250 }));
+    const { data } = await db.from('ledger_entries').select('description').eq('sale_id', sid).eq('category', 'platform_fee').single();
+    expect(data!.description).toMatch(/^Destacado · /);
+  });
+
+  it('un usuario no autorizado no puede eliminar nada', async () => {
+    const { data } = await db.from('sales').select('id').limit(1).single();
+    const r = await stranger.rpc('delete_sale', { p_id: data!.id });
+    expect(r.error?.message).toMatch(/No autorizado/);
   });
 });

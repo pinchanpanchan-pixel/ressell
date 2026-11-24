@@ -16,7 +16,7 @@ const FILTERS: { key: string; label: string; cats?: LedgerCategory }[] = [
   { key: 'sale_income', label: 'Ventas', cats: 'sale_income' },
   { key: 'supplier_payment', label: 'Proveedores', cats: 'supplier_payment' },
   { key: 'expense', label: 'Gastos', cats: 'expense' },
-  { key: 'platform_fee', label: 'Comisiones', cats: 'platform_fee' },
+  { key: 'platform_fee', label: 'Destacados', cats: 'platform_fee' },
   { key: 'customer_refund', label: 'Devoluciones', cats: 'customer_refund' },
   { key: 'withdrawal', label: 'Retiradas', cats: 'withdrawal' },
 ];
@@ -42,7 +42,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
         <Row label="Facturación" value={formatEUR(s.revenue_cents)} hint="Ventas confirmadas, neto de descuentos y reembolsos" />
         <Row label="Coste de lo vendido" value={`−${formatEUR(s.cogs_cents)}`} hint="Coste real de adquisición" />
         <Row label="Beneficio bruto" value={formatEUR(s.gross_profit_cents)} strong />
-        <Row label="Comisiones, envíos y otros de venta" value={`−${formatEUR(s.selling_costs_cents)}`} />
+        <Row label="Destacados, envíos y otros de venta" value={`−${formatEUR(s.selling_costs_cents)}`} />
         <Row label="Gastos generales" value={`−${formatEUR(s.general_expenses_cents)}`} />
         <Row label="Pérdidas por bajas" value={`−${formatEUR(s.write_off_losses_cents)}`} />
         <div className="my-1 border-t border-line" />

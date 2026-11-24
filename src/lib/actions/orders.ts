@@ -124,3 +124,15 @@ export async function cancelOrder(_: ActionState, fd: FormData): Promise<ActionS
   revalidatePath('/', 'layout');
   redirect(`/pedidos/${parsed.data.id}?ok=cancelado`);
 }
+
+/** Elimina el pedido por completo (su pago sale de la caja y su stock del inventario). */
+export async function deleteOrder(_: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase } = await requireOwner();
+  const parsed = parseForm(z.object({ id: zUuid() }), fd);
+  if (!parsed.ok) return parsed.state;
+  const { data: paths, error } = await supabase.rpc('delete_purchase_order', { p_id: parsed.data.id });
+  if (error) return failure(supabase, 'deleteOrder', error);
+  if (Array.isArray(paths) && paths.length) await supabase.storage.from('attachments').remove(paths as string[]);
+  revalidatePath('/', 'layout');
+  redirect('/pedidos?estado=all&ok=pedido_eliminado');
+}

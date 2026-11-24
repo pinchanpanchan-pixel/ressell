@@ -99,3 +99,15 @@ async function registerReturnInner(fd: FormData): Promise<ActionState> {
 export async function registerReturn(_: ActionState, fd: FormData): Promise<ActionState> {
   return withRequestId(fd, await registerReturnInner(fd));
 }
+
+/** Elimina la venta por completo (stock y caja vuelven a como si no hubiera existido). */
+export async function deleteSale(_: ActionState, fd: FormData): Promise<ActionState> {
+  const { supabase } = await requireOwner();
+  const parsed = parseForm(z.object({ id: zUuid() }), fd);
+  if (!parsed.ok) return parsed.state;
+  const { data: paths, error } = await supabase.rpc('delete_sale', { p_id: parsed.data.id });
+  if (error) return failure(supabase, 'deleteSale', error);
+  if (Array.isArray(paths) && paths.length) await supabase.storage.from('attachments').remove(paths as string[]);
+  revalidatePath('/', 'layout');
+  redirect('/ventas?ok=venta_eliminada');
+}

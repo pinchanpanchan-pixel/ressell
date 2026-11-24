@@ -20,8 +20,7 @@ function field(page: Page, name: string) {
 
 async function cash(page: Page) {
   await page.goto('/');
-  const card = page.getByText('Dinero disponible', { exact: true }).locator('..');
-  return eur(await card.locator('p.num').first().innerText());
+  return eur(await page.locator('[data-cash]').innerText());
 }
 
 async function login(page: Page, email: string, password: string) {
@@ -70,7 +69,7 @@ test('recorrido completo de la propietaria', async ({ page }) => {
   await expect(page.getByText('Proveedor guardado')).toBeVisible();
 
   // Productos (variantes separadas)
-  for (const [variant, sku, price] of [['Talla 42', 'ZX-42', '70'], ['Talla 43', 'ZX-43', '75']]) {
+  for (const [variant, sku, price, category] of [['Talla 42', 'ZX-42', '70', 'Zapatillas'], ['Talla 43', 'ZX-43', '75', '']]) {
     await page.goto('/stock/nuevo');
     await field(page, 'Nombre').fill('Zapatilla');
     await field(page, 'Marca').fill('Marca');
@@ -79,6 +78,7 @@ test('recorrido completo de la propietaria', async ({ page }) => {
     await field(page, 'SKU / referencia').fill(sku);
     await field(page, 'Proveedor habitual').selectOption({ label: 'Proveedor Test' });
     await field(page, 'Precio de venta previsto').fill(price);
+    if (category) await field(page, 'Categoría').fill(category);
     await page.getByRole('button', { name: 'Crear producto' }).click();
     await expect(page.getByRole('heading', { name: 'Zapatilla' })).toBeVisible();
   }
@@ -133,7 +133,7 @@ test('recorrido completo de la propietaria', async ({ page }) => {
   await page.goto('/ventas/nueva');
   await field(page, 'Producto y variante').selectOption({ label: 'Marca Zapatilla X1 · Talla 42 — 4 ud' });
   await expect(field(page, 'Precio por unidad')).toHaveValue('70,00');
-  await field(page, 'Comisión plataforma').fill('5');
+  await field(page, 'Destacado').fill('5');
   await expect(page.getByText('Beneficio estimado').locator('../..')).toContainText('47,30');
   await shot(page, '05-nueva-venta');
   const submit = page.getByRole('button', { name: 'Registrar venta' });
@@ -178,14 +178,68 @@ test('recorrido completo de la propietaria', async ({ page }) => {
   await expect(page.getByText('Devolución registrada como defectuosa')).toBeVisible();
   expect(await cash(page)).toBe('172,00 €');
 
-  // Gasto que supera la caja: rechazado con mensaje claro
+  // Gasto que deja la caja en negativo: se acepta y la tarjeta de Inicio se marca en rojo
   await page.goto('/finanzas');
   await field(page, 'Tipo de movimiento').selectOption('expense');
-  await field(page, 'Importe').fill('5000');
-  await field(page, 'Descripción').fill('Demasiado');
+  await field(page, 'Importe').fill('500');
+  await field(page, 'Descripción').fill('Gasto grande');
   await page.getByRole('button', { name: 'Registrar movimiento' }).click();
-  await expect(page.getByText(/Saldo insuficiente/)).toBeVisible();
-  await shot(page, '07-finanzas');
+  await expect(page.getByText('Movimiento registrado')).toBeVisible();
+  expect(await cash(page)).toBe('-328,00 €');
+  await expect(page.locator('.negative-cash')).toHaveCount(1);
+  await expect(page.getByText('En negativo')).toBeVisible();
+  await shot(page, '07-caja-negativa');
+  // Se anula con un asiento inverso y la caja vuelve a positivo, sin contorno
+  await page.goto('/finanzas');
+  await page.getByRole('button', { name: 'Anular' }).first().click();
+  await page.getByRole('button', { name: 'Anular movimiento' }).click();
+  await page.getByRole('button', { name: 'Crear asiento inverso' }).click();
+  await expect(page.getByText(/Gasto · anulado/)).toBeVisible();
+  expect(await cash(page)).toBe('172,00 €');
+  await expect(page.locator('.negative-cash')).toHaveCount(0);
+
+  // Eliminar la venta cancelada: desaparece del todo
+  await page.goto('/ventas?ver=cancelled');
+  await page.locator('a[href^="/ventas/"]:not([href="/ventas/nueva"])').first().click();
+  await page.getByRole('button', { name: 'Eliminar venta' }).click();
+  await page.getByRole('button', { name: 'Sí, eliminar para siempre' }).click();
+  await expect(page.getByText('Venta eliminada')).toBeVisible();
+  expect(await cash(page)).toBe('172,00 €');
+
+  // Crear un producto desde dentro de un pedido, guardar como borrador y eliminar el pedido
+  await page.goto('/pedidos/nuevo');
+  await page.getByRole('button', { name: '+ Producto nuevo' }).click();
+  await field(page, 'Nombre').fill('Gorra');
+  await field(page, 'Categoría').fill('Accesorios');
+  await field(page, 'Precio venta previsto').fill('20');
+  await field(page, 'Coste unitario').fill('5');
+  await shot(page, '12-producto-desde-pedido');
+  await page.getByRole('button', { name: 'Crear y añadir al pedido' }).click();
+  await expect(page.getByRole('combobox', { name: 'Producto' }).first()).toHaveValue(/[0-9a-f-]{36}/);
+  await expect(page.getByRole('combobox', { name: 'Producto' }).first().locator('option:checked')).toHaveText('Gorra');
+  await expect(field(page, 'Precio/ud').first()).toHaveValue('5');
+  await page.getByRole('button', { name: 'Guardar borrador' }).click();
+  await expect(page.getByRole('heading', { name: /PED-/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Eliminar pedido' }).click();
+  await page.getByRole('button', { name: 'Sí, eliminar para siempre' }).click();
+  await expect(page.getByText('Pedido eliminado')).toBeVisible();
+
+  // Pedido recibido con unidades vendidas: no se puede eliminar
+  await page.goto(orderUrl);
+  await page.getByRole('button', { name: 'Eliminar pedido' }).click();
+  await page.getByRole('button', { name: 'Sí, eliminar para siempre' }).click();
+  await expect(page.getByText(/No se puede eliminar: hay unidades de este pedido vendidas/)).toBeVisible();
+
+  // Filtro por categoría en Stock
+  await page.goto('/stock?ver=todos');
+  await expect(page.getByRole('link', { name: 'Zapatillas', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Accesorios', exact: true }).click();
+  await expect(page.getByText('Gorra')).toBeVisible();
+  await expect(page.getByText('Talla 42')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Zapatillas', exact: true }).click();
+  await expect(page.getByText('Marca Zapatilla X1 · Talla 42')).toBeVisible();
+  await expect(page.getByText('Gorra')).toHaveCount(0);
+  await shot(page, '13-stock-categorias');
 
   await page.goto('/');
   await shot(page, '08-dashboard');
@@ -193,7 +247,14 @@ test('recorrido completo de la propietaria', async ({ page }) => {
   await shot(page, '09-stock');
   await page.goto('/analisis');
   await expect(page.getByText('Ranking de productos')).toBeVisible();
+  await expect(page.getByText('Propuesta de pedido con toda la caja')).toBeVisible();
+  await expect(page.getByText('Análisis de ventas')).toBeVisible();
   await shot(page, '10-analisis');
+  for (const enfoque of ['Más dinero', 'Más rápido', 'Productos nuevos']) {
+    await page.getByRole('link', { name: enfoque, exact: true }).click();
+    await expect(page.getByText('Dinero para el pedido')).toBeVisible();
+  }
+  await shot(page, '10b-analisis-nuevos');
   await page.goto('/planificador');
   await page.getByRole('button', { name: 'Capital de referencia' }).click();
   await expect(page.getByText('Unidades', { exact: true }).locator('../..')).toContainText('6 ud');
@@ -202,6 +263,6 @@ test('recorrido completo de la propietaria', async ({ page }) => {
   const exp = await page.request.get('/api/export?format=json');
   expect(exp.status()).toBe(200);
   const dump = await exp.json();
-  expect(dump.sales).toHaveLength(3);
+  expect(dump.sales).toHaveLength(2);
   expect(dump.ledger_entries.reduce((t: number, e: { amount_cents: number }) => t + e.amount_cents, 0)).toBe(17200);
 });

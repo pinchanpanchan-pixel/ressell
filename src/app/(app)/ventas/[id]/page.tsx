@@ -5,7 +5,7 @@ import { Attachments } from '@/components/attachments';
 import { Flash } from '@/components/flash';
 import { ConfirmSubmit, Field, Input, MoneyInput, Select, SubmitButton, Textarea } from '@/components/form';
 import { Badge, Card, PageHeader, Row, SectionTitle } from '@/components/ui';
-import { cancelSale, markSalePaid, registerReturn, updateDelivery } from '@/lib/actions/sales';
+import { cancelSale, deleteSale, markSalePaid, registerReturn, updateDelivery } from '@/lib/actions/sales';
 import { requireOwner } from '@/lib/auth';
 import { getAttachments, getSale } from '@/lib/data';
 import { formatDate, todayISO } from '@/lib/dates';
@@ -47,7 +47,7 @@ export default async function SalePage({ params, searchParams }: { params: Promi
         <Row label={`${s.quantity} × ${formatEUR(s.unit_price_cents)}`} value={formatEUR(s.quantity * s.unit_price_cents)} />
         {s.discount_cents > 0 && <Row label="Descuento" value={`−${formatEUR(s.discount_cents)}`} />}
         {s.refunded_cents > 0 && <Row label="Reembolsado" value={`−${formatEUR(s.refunded_cents)}`} />}
-        <Row label="Comisión de plataforma" value={`−${formatEUR(s.platform_fee_cents)}`} />
+        <Row label="Destacado" value={`−${formatEUR(s.platform_fee_cents)}`} />
         <Row label="Envío asumido" value={`−${formatEUR(s.shipping_cost_cents)}`} />
         {s.other_costs_cents > 0 && <Row label="Otros gastos" value={`−${formatEUR(s.other_costs_cents)}`} />}
         <Row label="Coste real de las unidades" value={`−${formatEUR(s.cogs_cents - s.restocked_cost_cents)}`} hint={s.restocked_cost_cents > 0 ? `${formatEUR(s.restocked_cost_cents)} volvieron al stock` : undefined} />
@@ -154,6 +154,14 @@ export default async function SalePage({ params, searchParams }: { params: Promi
 
       <SectionTitle>Justificantes</SectionTitle>
       <Card><Attachments entityType="sale" entityId={id} ownerId={user.id} items={files} /></Card>
+
+      <SectionTitle>Eliminar venta</SectionTitle>
+      <Card>
+        <ActionForm action={deleteSale} hidden={{ id }}>
+          <p className="text-sm text-muted">Borra la venta por completo, como si nunca hubiera existido: sus unidades vuelven al stock{s.payment_status === 'paid' && s.status === 'confirmed' ? ` y se quitan de la caja sus movimientos (${formatEUR(s.revenue_cents - s.refunded_cents - s.platform_fee_cents - s.shipping_cost_cents - s.other_costs_cents, { sign: true })})` : ''}. No se puede deshacer.</p>
+          <ConfirmSubmit variant="danger" confirmText="Sí, eliminar para siempre">Eliminar venta</ConfirmSubmit>
+        </ActionForm>
+      </Card>
     </>
   );
 }

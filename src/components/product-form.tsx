@@ -7,7 +7,7 @@ import type { ProductMetrics, Supplier } from '@/lib/types';
 import { Field, FormMessage, Input, MoneyInput, Select, SubmitButton, Textarea } from './form';
 import { useVersionGuard, VersionFields } from './version-guard';
 
-export function ProductForm({ product, suppliers, version }: { product?: ProductMetrics; suppliers: Supplier[]; version?: string }) {
+export function ProductForm({ product, suppliers, version, categories = [] }: { product?: ProductMetrics; suppliers: Supplier[]; version?: string; categories?: string[] }) {
   const [state, action] = useActionState(saveProduct, null);
   const guard = useVersionGuard(version);
   const e = state?.fieldErrors ?? {};
@@ -24,7 +24,10 @@ export function ProductForm({ product, suppliers, version }: { product?: Product
         <Input name="variant" defaultValue={product?.variant ?? ''} placeholder="Ej.: Talla 42 · Negro" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Categoría" error={e.category}><Input name="category" defaultValue={product?.category ?? ''} /></Field>
+        <Field label="Categoría" error={e.category}>
+          <Input name="category" list="product-categories" autoComplete="off" defaultValue={product?.category ?? ''} />
+          <datalist id="product-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+        </Field>
         <Field label="SKU / referencia" error={e.sku}><Input name="sku" defaultValue={product?.sku ?? ''} autoCapitalize="characters" /></Field>
       </div>
       <Field label="Proveedor habitual" error={e.supplier_id}>

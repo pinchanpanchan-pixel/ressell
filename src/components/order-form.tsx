@@ -1,25 +1,32 @@
 'use client';
 import { Plus, Trash2 } from 'lucide-react';
-import Link from 'next/link';
 import { useActionState, useMemo, useState } from 'react';
 import { saveOrder } from '@/lib/actions/orders';
 import { centsToInput, formatEUR, parseEuroToCents } from '@/lib/money';
 import { productLabel, type ProductMetrics, type PurchaseOrderLine, type PurchaseOrderOverview, type Supplier } from '@/lib/types';
 import { Field, FormMessage, Input, MoneyInput, Select, SubmitButton, Textarea } from './form';
+import { QuickProduct } from './quick-product';
 import { Card, Row } from './ui';
 import { useVersionGuard, VersionFields } from './version-guard';
 
 type Line = { key: number; product_id: string; quantity: string; unit_price: string; discount: string };
 
-export function OrderForm({ products, suppliers, requestId, today, order, lines: initialLines, prefill }: {
+export function OrderForm({ products: initialProducts, suppliers, requestId, today, order, lines: initialLines, prefill, prefillShippingCents, categories = [] }: {
   products: ProductMetrics[];
   suppliers: Supplier[];
   requestId: string;
   today: string;
   order?: PurchaseOrderOverview;
   lines?: PurchaseOrderLine[];
-  prefill?: { product_id: string; quantity: number }[];
+  prefill?: { product_id: string; quantity: number; unit_price_cents?: number }[];
+  prefillShippingCents?: number;
+  categories?: string[];
 }) {
+  // Productos creados desde este pedido que aún no han llegado en la lista del servidor.
+  const [created, setCreated] = useState<ProductMetrics[]>([]);
+  const products = useMemo(() => [...initialProducts, ...created.filter((c) => !initialProducts.some((p) => p.id === c.id))], [initialProducts, created]);
+  const [showQuick, setShowQuick] = useState(false);
+  const [supplierId, setSupplierId] = useState(order?.supplier_id ?? '');
   const [state, action] = useActionState(saveOrder, null);
   const guard = useVersionGuard(order?.updated_at);
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -31,11 +38,11 @@ export function OrderForm({ products, suppliers, requestId, today, order, lines:
   };
   const [lines, setLines] = useState<Line[]>(() => {
     if (initialLines?.length) return initialLines.map((l, k) => ({ key: k, product_id: l.product_id, quantity: String(l.quantity), unit_price: centsToInput(l.unit_price_cents), discount: l.discount_cents ? centsToInput(l.discount_cents) : '' }));
-    if (prefill?.length) return prefill.map((l, k) => ({ key: k, product_id: l.product_id, quantity: String(l.quantity), unit_price: unitPriceFor(l.product_id), discount: '' }));
+    if (prefill?.length) return prefill.map((l, k) => ({ key: k, product_id: l.product_id, quantity: String(l.quantity), unit_price: l.unit_price_cents != null ? centsToInput(l.unit_price_cents) : unitPriceFor(l.product_id), discount: '' }));
     return [{ key: 0, product_id: '', quantity: '1', unit_price: '', discount: '' }];
   });
   const [costs, setCosts] = useState({
-    shipping: order ? centsToInput(order.shipping_cents) : '',
+    shipping: order ? centsToInput(order.shipping_cents) : prefillShippingCents ? centsToInput(prefillShippingCents) : '',
     packaging: order ? centsToInput(order.packaging_cents) : '',
     other: order ? centsToInput(order.other_costs_cents) : '',
     discount: order ? centsToInput(order.discount_cents) : '',
@@ -62,7 +69,7 @@ export function OrderForm({ products, suppliers, requestId, today, order, lines:
           <Field label="Fecha" error={state?.fieldErrors?.order_date}><Input name="order_date" type="date" defaultValue={order?.order_date ?? today} /></Field>
         </div>
         <Field label="Proveedor">
-          <Select name="supplier_id" defaultValue={order?.supplier_id ?? ''}>
+          <Select name="supplier_id" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
             <option value="">Sin proveedor</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </Select>
@@ -71,8 +78,20 @@ export function OrderForm({ products, suppliers, requestId, today, order, lines:
 
       <div className="flex items-center justify-between px-1">
         <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-muted">Productos</h2>
-        <Link href="/stock/nuevo" className="text-sm text-sage">Crear producto</Link>
+        <button type="button" onClick={() => setShowQuick((s) => !s)} className="text-sm text-sage">{showQuick ? 'Cerrar' : '+ Producto nuevo'}</button>
       </div>
+      {showQuick && (
+        <QuickProduct supplierId={supplierId} categories={categories} onClose={() => setShowQuick(false)}
+          onCreated={(p, unitCost) => {
+            setCreated((cs) => [...cs, p]);
+            setLines((ls) => {
+              const empty = ls.find((l) => !l.product_id);
+              if (empty) return ls.map((l) => (l.key === empty.key ? { ...l, product_id: p.id, unit_price: unitCost || l.unit_price } : l));
+              return [...ls, { key: Math.max(...ls.map((x) => x.key)) + 1, product_id: p.id, quantity: '1', unit_price: unitCost, discount: '' }];
+            });
+            setShowQuick(false);
+          }} />
+      )}
       {products.length === 0 && <Card><p className="text-sm text-muted">Primero crea los productos (una ficha por variante).</p></Card>}
       {lines.map((l, idx) => {
         const lt = (Number.parseInt(l.quantity, 10) || 0) * c(l.unit_price) - c(l.discount);

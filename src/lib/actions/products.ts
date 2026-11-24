@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { requireOwner } from '../auth';
 import { CONFLICT_MESSAGE, expectedVersion, failure, parseForm, withRequestId, zDate, zInt, zOptionalMoney, zOptionalUuid, zRequiredText, zText, zUuid } from './helpers';
+import type { ProductMetrics } from '../types';
 import type { ActionState } from './result';
 
 const productSchema = z.object({
@@ -78,4 +79,22 @@ async function writeOffStockInner(fd: FormData): Promise<ActionState> {
 
 export async function writeOffStock(_: ActionState, fd: FormData): Promise<ActionState> {
   return withRequestId(fd, await writeOffStockInner(fd));
+}
+
+export type QuickProductResult = { ok: true; product: ProductMetrics } | { ok: false; message: string; fieldErrors?: Record<string, string> };
+
+/** Alta rápida de un producto desde el formulario de pedido (sin salir del pedido). */
+export async function quickCreateProduct(fd: FormData): Promise<QuickProductResult> {
+  const { supabase } = await requireOwner();
+  const parsed = parseForm(productSchema, fd);
+  if (!parsed.ok) return { ok: false, message: parsed.state?.message ?? 'Revisa los campos', fieldErrors: parsed.state?.fieldErrors };
+  const { data, error } = await supabase.from('products').insert(parsed.data).select('id').single();
+  if (error) {
+    const f = await failure(supabase, 'quickCreateProduct', error);
+    return { ok: false, message: f?.message ?? 'No se pudo crear el producto' };
+  }
+  const { data: row, error: rErr } = await supabase.from('product_metrics').select('*').eq('id', data.id).single();
+  if (rErr) return { ok: false, message: rErr.message };
+  revalidatePath('/', 'layout');
+  return { ok: true, product: row as ProductMetrics };
 }

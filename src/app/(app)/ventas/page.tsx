@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
+import { Flash } from '@/components/flash';
 import { Badge, ButtonLink, Card, Chips, EmptyState, PageHeader } from '@/components/ui';
 import { getSales } from '@/lib/data';
 import { formatDate } from '@/lib/dates';
@@ -9,14 +10,15 @@ import { productLabel } from '@/lib/types';
 
 export const metadata = { title: 'Ventas' };
 
-export default async function SalesPage({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
-  const { ver = 'todas' } = await searchParams;
+export default async function SalesPage({ searchParams }: { searchParams: Promise<{ ver?: string; ok?: string }> }) {
+  const { ver = 'todas', ok } = await searchParams;
   const sales = await getSales({ filter: ver });
   const confirmed = sales.filter((s) => s.status === 'confirmed');
   return (
     <>
       <PageHeader title="Ventas" subtitle={`${confirmed.length} ventas · ${formatEUR(confirmed.reduce((t, s) => t + s.profit_cents, 0))} de beneficio`}
         action={<ButtonLink href="/ventas/nueva" size="sm"><Plus className="size-4" />Venta</ButtonLink>} />
+      <Flash code={ok} />
       <Chips active={ver} items={[
         { key: 'todas', label: 'Todas', href: '/ventas' },
         { key: 'unpaid', label: 'Por cobrar', href: '/ventas?ver=unpaid' },
