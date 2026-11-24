@@ -8,12 +8,19 @@ import { productLabel } from '@/lib/types';
 
 export const metadata = { title: 'Stock' };
 
-export default async function StockPage({ searchParams }: { searchParams: Promise<{ ver?: string; q?: string }> }) {
-  const { ver = 'stock', q = '' } = await searchParams;
+const NO_CATEGORY = 'Sin categoría';
+
+export default async function StockPage({ searchParams }: { searchParams: Promise<{ ver?: string; q?: string; cat?: string }> }) {
+  const { ver = 'stock', q = '', cat = '' } = await searchParams;
   const all = await getProducts({ archived: ver === 'archivados' });
   const term = q.trim().toLowerCase();
+  // Categorías: un botón por cada categoría que tengan tus productos (se crean solas).
+  const categories = [...new Set(all.map((p) => p.category?.trim() || NO_CATEGORY))].sort((a, b) =>
+    a === NO_CATEGORY ? 1 : b === NO_CATEGORY ? -1 : a.localeCompare(b, 'es'));
+  const href = (v: string, c: string) => `/stock?ver=${v}${c ? `&cat=${encodeURIComponent(c)}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
   const list = all
     .filter((p) => (ver === 'stock' ? p.stock_qty > 0 || p.incoming_qty > 0 : true))
+    .filter((p) => !cat || (p.category?.trim() || NO_CATEGORY) === cat)
     .filter((p) => !term || [p.name, p.brand, p.model, p.variant, p.sku, p.category].some((v) => v?.toLowerCase().includes(term)));
   const units = list.reduce((t, p) => t + p.stock_qty, 0);
   const cost = list.reduce((t, p) => t + p.stock_cost_cents, 0);
@@ -23,14 +30,21 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
       <PageHeader title="Stock" subtitle={`${units} ud · ${formatEUR(cost)} a coste`} action={<ButtonLink href="/stock/nuevo" size="sm"><Plus className="size-4" />Producto</ButtonLink>} />
       <form className="mb-3">
         <input type="hidden" name="ver" value={ver} />
+        {cat && <input type="hidden" name="cat" value={cat} />}
         <input name="q" defaultValue={q} placeholder="Buscar por nombre, variante o SKU" aria-label="Buscar"
           className="min-h-11 w-full rounded-2xl border border-line bg-graphite-deep/60 px-4 text-[16px] placeholder:text-faint focus:border-sage/60 focus:outline-none" />
       </form>
       <Chips active={ver} items={[
-        { key: 'stock', label: 'Con stock', href: '/stock?ver=stock' },
-        { key: 'todos', label: 'Todos', href: '/stock?ver=todos' },
-        { key: 'archivados', label: 'Archivados', href: '/stock?ver=archivados' },
+        { key: 'stock', label: 'Con stock', href: href('stock', cat) },
+        { key: 'todos', label: 'Todos', href: href('todos', cat) },
+        { key: 'archivados', label: 'Archivados', href: href('archivados', cat) },
       ]} />
+      {categories.length > 0 && (
+        <Chips active={cat || '__all'} items={[
+          { key: '__all', label: 'Todas las categorías', href: href(ver, '') },
+          ...categories.map((c) => ({ key: c, label: c, href: href(ver, c) })),
+        ]} />
+      )}
       {list.length === 0 ? (
         <EmptyState title={all.length === 0 ? 'Aún no hay productos' : 'Nada que mostrar'} text={all.length === 0 ? 'Crea tus productos (una ficha por variante) y después registra un pedido.' : 'Prueba con otro filtro.'}
           action={all.length === 0 ? <ButtonLink href="/stock/nuevo">Crear producto</ButtonLink> : undefined} />

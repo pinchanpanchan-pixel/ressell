@@ -58,7 +58,7 @@ export function SaleForm({ products, requestId, today, defaultProductId, channel
         <h2 className="text-sm font-medium">Costes de la venta</h2>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Descuento" error={e.discount_cents}><MoneyInput name="discount_cents" value={m.discount} onChange={(ev) => setM({ ...m, discount: ev.target.value })} /></Field>
-          <Field label="Comisión plataforma" error={e.platform_fee_cents}><MoneyInput name="platform_fee_cents" value={m.fee} onChange={(ev) => setM({ ...m, fee: ev.target.value })} /></Field>
+          <Field label="Destacado" error={e.platform_fee_cents}><MoneyInput name="platform_fee_cents" value={m.fee} onChange={(ev) => setM({ ...m, fee: ev.target.value })} /></Field>
           <Field label="Envío asumido por mí" error={e.shipping_cost_cents}><MoneyInput name="shipping_cost_cents" value={m.shipping} onChange={(ev) => setM({ ...m, shipping: ev.target.value })} /></Field>
           <Field label="Otros gastos" error={e.other_costs_cents}><MoneyInput name="other_costs_cents" value={m.other} onChange={(ev) => setM({ ...m, other: ev.target.value })} /></Field>
         </div>

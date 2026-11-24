@@ -5,7 +5,7 @@ import { Attachments } from '@/components/attachments';
 import { Flash } from '@/components/flash';
 import { ConfirmSubmit, Field, Input, SubmitButton, Textarea } from '@/components/form';
 import { Badge, buttonClass, Card, Notice, PageHeader, Row, SectionTitle } from '@/components/ui';
-import { cancelOrder, payOrder, receiveOrder, setOrderStatus, updateOrderInfo } from '@/lib/actions/orders';
+import { cancelOrder, deleteOrder, payOrder, receiveOrder, setOrderStatus, updateOrderInfo } from '@/lib/actions/orders';
 import { requireOwner } from '@/lib/auth';
 import { getAttachments, getOrder, getProducts } from '@/lib/data';
 import { formatDate, todayISO } from '@/lib/dates';
@@ -160,6 +160,17 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           </Card>
         </>
       )}
+
+      <SectionTitle>Eliminar pedido</SectionTitle>
+      <Card>
+        <ActionForm action={deleteOrder} hidden={{ id }}>
+          <p className="text-sm text-muted">
+            Borra el pedido por completo, como si nunca hubiera existido{o.paid_at ? `: su pago (${formatEUR(o.paid_amount_cents ?? o.total_cents)}) vuelve a la caja` : ''}{o.received_at ? ' y sus unidades salen del stock' : ''}.
+            {o.received_at && ' Si alguna unidad ya se vendió, primero tendrás que eliminar esa venta.'} No se puede deshacer.
+          </p>
+          <ConfirmSubmit variant="danger" confirmText="Sí, eliminar para siempre">Eliminar pedido</ConfirmSubmit>
+        </ActionForm>
+      </Card>
     </>
   );
 }

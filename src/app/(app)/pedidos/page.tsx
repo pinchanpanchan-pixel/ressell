@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
+import { Flash } from '@/components/flash';
 import { Badge, ButtonLink, Card, Chips, EmptyState, PageHeader } from '@/components/ui';
 import { getOrders } from '@/lib/data';
 import { formatDate } from '@/lib/dates';
@@ -8,12 +9,13 @@ import { formatEUR } from '@/lib/money';
 
 export const metadata = { title: 'Pedidos' };
 
-export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ estado?: string }> }) {
-  const { estado = 'open' } = await searchParams;
+export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ estado?: string; ok?: string }> }) {
+  const { estado = 'open', ok } = await searchParams;
   const orders = await getOrders(estado === 'all' ? undefined : estado);
   return (
     <>
       <PageHeader title="Pedidos" subtitle="Compras a proveedores" action={<ButtonLink href="/pedidos/nuevo" size="sm"><Plus className="size-4" />Pedido</ButtonLink>} />
+      <Flash code={ok} />
       <Chips active={estado} items={[
         { key: 'open', label: 'En curso', href: '/pedidos?estado=open' },
         { key: 'received', label: 'Recibidos', href: '/pedidos?estado=received' },
